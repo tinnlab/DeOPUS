@@ -1,0 +1,52 @@
+# R specific
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Package build files
+*.tar.gz
+*.tgz
+DeOPUS.Rcheck/
+DeOPUS_*.tar.gz
+
+# Generated documentation
+man/*.Rd
+NAMESPACE
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Data files (large)
+data/real_datasets/*.rds
+data/simulated_datasets/*.rds
+results/
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Output files
+*.pdf
+*.png
+*.jpg
+!vignettes/*.png
+
+# Compiled code
+*.o
+*.so
+*.dll
+
+# Sensitive information
+*.lic
+license.lic

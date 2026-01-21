@@ -1,0 +1,31 @@
+Package: DeOPUS
+Type: Package
+Title: Deconvolution via Optimized Power-transformed Unmixing with Shrinkage
+Version: 1.0.0
+Authors@R: c(
+    person("Ha", "Nguyen", email = "hvn0006@wayne.edu", role = c("aut", "cre"))
+    )
+Description: A reference-based cellular deconvolution method that employs 
+    hierarchical shrinkage transformation to robustly estimate cell-type 
+    proportions from bulk RNA sequencing data. DeOPUS applies a multi-level 
+    adaptive transformation combining local and global shrinkage priors, 
+    variance-stabilizing power transformation, and quantile normalization 
+    to minimize the influence of outliers and high-variance genes.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.2.3
+Imports:
+    Matrix,
+    dplyr,
+    parallel,
+    stats
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown,
+    ggplot2,
+    tidyverse
+VignetteBuilder: knitr
+URL: https://github.com/tinnlab/DeOPUS/DeOPUS
+BugReports: https://github.com/tinnlab/DeOPUS/issues

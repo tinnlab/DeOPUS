@@ -24,7 +24,7 @@ Single-cell RNA sequencing enables comprehensive transcriptomic profiling at sin
 install.packages("devtools")
 
 # Install DeOPUS
-devtools::install_github("yourusername/DeOPUS")
+devtools::install_github("tinnlab/DeOPUS")
 ```
 
 ### Dependencies
@@ -108,7 +108,7 @@ To reproduce the results from our paper:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/DeOPUS.git
+git clone https://github.com/tinnlab/DeOPUS.git
 cd DeOPUS
 
 # Run the complete benchmark pipeline
@@ -120,7 +120,7 @@ Rscript scripts/analysis/generate_figures.R
 
 ### Data Availability
 
-Benchmark datasets are available at [Zenodo DOI] or can be generated using:
+Benchmark datasets are available at https://doi.org/10.5281/zenodo.19050845 or can be generated using:
 
 ```r
 source("scripts/data/prepare_benchmark_data.R")
@@ -156,10 +156,13 @@ If you use DeOPUS in your research, please cite:
 }
 ```
 
-## License
+[//]: # (## License)
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+[//]: # ()
+[//]: # (This project is licensed under the MIT License - see the [LICENSE]&#40;LICENSE&#41; file for details.)
 
-## Contact
+[//]: # ()
+[//]: # (## Contact)
 
-For questions or issues, please open an issue on GitHub or contact [email].
+[//]: # ()
+[//]: # (For questions or issues, please open an issue on GitHub or contact [email].)

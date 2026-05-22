@@ -175,6 +175,9 @@ deconvolve <- function(bulk,
   # Extract proportions matrix
   proportions <- do.call(rbind, lapply(results, function(x) x$proportions))
 
+  # Clamp: L-BFGS-B can return tiny negatives (~-1e-16) on some platforms
+  proportions <- pmax(proportions, 0)
+
   # Normalize to sum to 1
   row_sums <- rowSums(proportions)
   row_sums[row_sums == 0] <- 1

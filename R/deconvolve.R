@@ -28,22 +28,24 @@
 #' }
 #'
 #' @examples
-#' \dontrun{
-#' # Load example data
-#' data(example_bulk)
-#' data(example_reference)
+#' # Load the built-in sample benchmark dataset
+#' data(sampleData)
 #'
-#' # Run deconvolution
+#' # Run deconvolution on a small subset for speed
+#' set.seed(42)
+#' idx <- sample(ncol(sampleData$bulk), 10)
 #' results <- deconvolve(
-#'   bulk = example_bulk,
-#'   reference = example_reference,
-#'   n_cores = 4
+#'   bulk      = sampleData$bulk[, idx],
+#'   reference = sampleData$cellTypeExpr,
+#'   n_cores   = 1,
+#'   maxit     = 50
 #' )
 #'
-#' # View proportions
+#' # View estimated proportions (samples x cell types)
 #' head(results$proportions)
-#' }
 #'
+#' @importFrom parallel mclapply
+#' @importFrom stats optim qnorm
 #' @export
 deconvolve <- function(bulk,
                        reference,
@@ -52,7 +54,6 @@ deconvolve <- function(bulk,
                        n_cores = 1,
                        maxit = 100,
                        verbose = FALSE) {
-
 
   # Input validation
   if (!is.matrix(bulk)) {
@@ -63,8 +64,7 @@ deconvolve <- function(bulk,
   }
 
   # Check for common genes
-
-common_genes <- intersect(rownames(bulk), rownames(reference))
+  common_genes <- intersect(rownames(bulk), rownames(reference))
   if (length(common_genes) == 0) {
     stop("No common genes found between bulk and reference matrices.")
   }
@@ -110,7 +110,7 @@ common_genes <- intersect(rownames(bulk), rownames(reference))
 
     # Apply spline-based normalization
     ranks <- rank(z) / length(z)
-    quantile_norm <- qnorm(pmax(0.001, pmin(0.999, ranks)))
+    quantile_norm <- stats::qnorm(pmax(0.001, pmin(0.999, ranks)))
 
     # Enhanced blending transformation with multi-level shrinkage
     signal_weight <- pmin(1, q / (10 + alpha * q)) * (1 - local_shrink)
@@ -131,14 +131,9 @@ common_genes <- intersect(rownames(bulk), rownames(reference))
 
   # Define loss function
   loss_function <- function(p, b, reference, alpha, power, transform_func) {
-    # Apply transformation to bulk
     b_transformed <- transform_func(b, alpha)
-
-    # Compute fitted values
     fitted <- as.vector(reference %*% p)
     fitted_transformed <- transform_func(fitted, alpha)
-
-    # Calculate loss
     return(sum(abs(b_transformed - fitted_transformed)^power))
   }
 
@@ -148,8 +143,8 @@ common_genes <- intersect(rownames(bulk), rownames(reference))
   }
 
   results <- parallel::mclapply(seq_len(n_samples), mc.cores = n_cores, mc.preschedule = FALSE, function(i) {
-    result <- tryCatch({
-      optim_result <- optim(
+    tryCatch({
+      optim_result <- stats::optim(
         par = rep(1 / n_cell_types, n_cell_types),
         fn = loss_function,
         b = bulk[, i],
@@ -162,7 +157,6 @@ common_genes <- intersect(rownames(bulk), rownames(reference))
         upper = 100,
         control = list(maxit = maxit)
       )
-
       list(
         proportions = optim_result$par,
         convergence = optim_result$convergence,
@@ -176,16 +170,17 @@ common_genes <- intersect(rownames(bulk), rownames(reference))
         error = conditionMessage(e)
       )
     })
-
-    return(result)
   })
 
   # Extract proportions matrix
   proportions <- do.call(rbind, lapply(results, function(x) x$proportions))
 
+  # Clamp: L-BFGS-B can return tiny negatives (~-1e-16) on some platforms
+  proportions <- pmax(proportions, 0)
+
   # Normalize to sum to 1
   row_sums <- rowSums(proportions)
-  row_sums[row_sums == 0] <- 1  # Avoid division by zero
+  row_sums[row_sums == 0] <- 1
   proportions <- proportions / row_sums
 
   # Handle NAs

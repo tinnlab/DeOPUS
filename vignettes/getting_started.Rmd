@@ -1,0 +1,159 @@
+---
+title: "Getting Started with DeOPUS"
+author: "Ha Nguyen"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting Started with DeOPUS}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+## Introduction
+
+DeOPUS (Deconvolution via Optimized Power-transformed Unmixing with Shrinkage)
+is a reference-based cellular deconvolution method that estimates cell-type
+proportions from bulk RNA sequencing data.
+
+## Installation
+
+Install DeOPUS from GitHub:
+
+```{r install, eval=FALSE}
+# Install devtools if not already installed
+install.packages("devtools")
+
+# Install DeOPUS
+devtools::install_github("tinnlab/DeOPUS")
+```
+
+Load the package:
+
+```{r load}
+library(DeOPUS)
+```
+
+## Input Data Format
+
+DeOPUS requires two inputs:
+
+1. **Bulk matrix** (`bulk`): A genes × samples matrix of bulk RNA-seq expression
+   values in linear scale (non-negative, not log-transformed).
+2. **Reference matrix** (`reference`): A genes × cell types matrix of average
+   expression profiles per cell type, typically derived from scRNA-seq.
+
+Both matrices must have matching gene identifiers as row names.
+
+## Quick Example
+
+The package includes a built-in simulated benchmark dataset (`sampleData`) with
+known ground-truth proportions for 2 cell types across 512 samples.
+
+```{r sample-data, eval=FALSE}
+# Load the built-in sample dataset
+data(sampleData)
+
+# Inspect dimensions
+dim(sampleData$bulk)          # 11852 genes x 512 samples
+dim(sampleData$cellTypeExpr)  # 11852 genes x 2 cell types
+
+# Run deconvolution on a small subset (10 samples for speed)
+set.seed(42)
+idx <- sample(ncol(sampleData$bulk), 10)
+
+results <- deconvolve(
+  bulk      = sampleData$bulk[, idx],
+  reference = sampleData$cellTypeExpr,
+  alpha     = 0.01,
+  n_cores   = 1,
+  verbose   = TRUE
+)
+
+# View estimated proportions (samples x cell types)
+head(results$proportions)
+```
+
+### Evaluate Against Ground Truth
+
+`bulkRatio` row names and `cellTypeExpr` column names may be in different
+orders, so align by cell-type name before computing the correlation:
+
+```{r evaluate, eval=FALSE}
+# Align bulkRatio cell-type ORDER to match results$proportions columns
+ct <- colnames(results$proportions)
+true_props <- t(sampleData$bulkRatio[ct, idx, drop = FALSE])  # 10 x 2
+
+# Pearson correlation per sample
+cor_values <- sapply(seq_len(nrow(results$proportions)), function(i) {
+  cor(results$proportions[i, ], true_props[i, ], method = "pearson")
+})
+
+cat("Mean Pearson correlation:", round(mean(cor_values, na.rm = TRUE), 3), "\n")
+```
+
+## Method Details
+
+DeOPUS applies a multi-level adaptive transformation:
+
+### 1. Hierarchical Shrinkage
+
+- **Local shrinkage** ($\tau$): Attenuates the influence of individual
+  high-variance genes.
+- **Global shrinkage** ($\phi$): Provides overall regularization across the
+  expression profile.
+
+### 2. Power Transformation
+
+A variance-stabilizing power transformation handles the high dynamic range:
+
+$$z = \frac{(q/s + \kappa)^{\mu \omega g} - \kappa^\mu}{\mu g}$$
+
+where $q$ is the expression value, $s$ is a scale factor, $g$ is the global
+shrinkage weight, and $\kappa$, $\mu$, $\omega$ are shape parameters.
+
+### 3. Quantile Normalization
+
+Spline-based quantile normalization ensures robust comparison between profiles.
+
+### 4. Optimization
+
+DeOPUS uses L-BFGS-B optimization with box constraints (proportions ≥ 0) to
+minimize the loss between transformed bulk and reconstructed expression.
+
+## Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `alpha`   | 0.01    | Regularization parameter |
+| `power`   | 2       | Loss function power (1 = MAE, 2 = MSE) |
+| `n_cores` | 1       | Parallel processing cores |
+| `maxit`   | 100     | Maximum optimization iterations |
+| `verbose` | FALSE   | Print progress messages |
+
+## Benchmarking
+
+The package ships benchmark and analysis scripts in `inst/scripts/`. After
+installation, source them via `system.file()`:
+
+```{r benchmark, eval=FALSE}
+# Run benchmark on real datasets
+source(system.file("scripts/benchmark/run_benchmark_real.R", package = "DeOPUS"))
+
+# Generate visualization dashboard
+source(system.file("scripts/analysis/visualize_results.R", package = "DeOPUS"))
+```
+
+## Session Info
+
+```{r sessioninfo}
+sessionInfo()
+```

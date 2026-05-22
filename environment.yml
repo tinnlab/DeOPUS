@@ -1,0 +1,13 @@
+name: decopus
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - r-base>=4.3
+  - r-matrix
+  - r-devtools
+  - r-testthat
+  - r-roxygen2
+  - r-knitr
+  - r-rmarkdown
+  - r-ggplot2

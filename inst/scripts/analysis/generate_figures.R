@@ -7,8 +7,13 @@ library(tidyverse)
 library(scales)
 library(cowplot)
 
-# Source visualization functions
-source("scripts/analysis/visualize_results.R")
+# Source visualization functions. Prefer the installed-package location
+# (system.file resolves after install_github / R CMD INSTALL); fall back to
+# the in-repo path when running from a clone.
+.viz_path <- system.file("scripts/analysis/visualize_results.R",
+                         package = "DeOPUS")
+if (!nzchar(.viz_path)) .viz_path <- "inst/scripts/analysis/visualize_results.R"
+source(.viz_path)
 
 ################################################################################
 # Configuration

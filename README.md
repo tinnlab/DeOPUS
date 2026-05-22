@@ -30,10 +30,25 @@ install.packages("devtools")
 devtools::install_github("tinnlab/DeOPUS")
 ```
 
-### Dependencies
+### Optional dependencies (only for the benchmark / figure scripts)
+
+The core `deconvolve()` function needs nothing beyond what `install_github`
+installs. The reproducibility scripts in `inst/scripts/` have additional needs:
 
 ```r
-install.packages(c("Matrix", "parallel"))
+# Benchmark runner
+install.packages(c("RhpcBLASctl", "dplyr"))
+
+# Figure generation
+install.packages(c("tidyverse", "scales", "cowplot", "gridExtra"))
+
+# Bioconductor (used by visualize_results.R)
+if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
+BiocManager::install(c("ComplexHeatmap", "circlize"))
+
+# OPTIONAL — only for competing methods (MuSiC / AutoGeneS / CIBERSORT /
+# FARDEEP / scaden / AdRoit). Requires Docker installed and running.
+# install.packages("DeconBenchmark")
 ```
 
 ## Quick Start
@@ -113,49 +128,76 @@ We benchmarked DeOPUS against six state-of-the-art methods:
 
 ### Running Benchmarks
 
-Benchmark and visualization scripts ship in `inst/scripts/`. After installation,
-source them via `system.file()`:
+Benchmark and visualization scripts ship in `inst/scripts/` and are accessible
+after install via `system.file()`. The benchmark expects a directory of `.rds`
+input files where each file is a list matching the schema of `data(sampleData)`
+(`$bulk`, `$cellTypeExpr`, `$bulkRatio`, etc.).
+
+To benchmark **DeOPUS** on the bundled `sampleData` end-to-end:
 
 ```r
-# Run benchmark on real datasets
+library(DeOPUS)
 source(system.file("scripts/benchmark/run_benchmark_real.R", package = "DeOPUS"))
-run_benchmark()
 
-# Generate visualization dashboard
-source(system.file("scripts/analysis/visualize_results.R", package = "DeOPUS"))
-results <- create_summary_barplot_dashboard(benchmark_data)
+# Prepare an input dir with at least one dataset .rds file
+input_dir  <- file.path(tempdir(), "decopus_inputs")
+output_dir <- file.path(tempdir(), "decopus_results")
+dir.create(input_dir,  recursive = TRUE, showWarnings = FALSE)
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+# Use the bundled sampleData as the benchmark input
+data(sampleData)
+saveRDS(sampleData, file.path(input_dir, "sampleData.rds"))
+
+# Run benchmark — restrict to DeOPUS unless you have DeconBenchmark + Docker
+run_benchmark(
+  data_dir   = input_dir,
+  output_dir = output_dir,
+  methods    = "DeOPUS"
+)
+
+# Aggregate per-sample, per-cell-type results into a long-format dataframe
+benchmark_data <- aggregate_results(output_dir = output_dir, methods = "DeOPUS")
+head(benchmark_data)
 ```
 
-Or from a clone of the repository:
-
-```r
-source("inst/scripts/benchmark/run_benchmark_real.R")
-source("inst/scripts/analysis/visualize_results.R")
-```
+To include MuSiC, AutoGeneS, CIBERSORT, FARDEEP, scaden, AdRoit, install the
+optional `DeconBenchmark` package (requires Docker) and pass them in
+`methods = c("DeOPUS", "MuSiC", ...)`.
 
 ## Reproducing Paper Results
 
-To reproduce the results from our paper:
+The benchmark scripts expect a directory of `.rds` datasets (one per real
+benchmark dataset, matching the schema of `data(sampleData)`) at
+`data/real_datasets/`, and write results to `results/real_benchmark/` and
+figures to `figures/`.
 
 ```bash
-# Clone the repository
 git clone https://github.com/tinnlab/DeOPUS.git
 cd DeOPUS
 
-# Run the benchmark pipeline
+# Place benchmark datasets here (one .rds per dataset)
+mkdir -p data/real_datasets
+# cp /path/to/your/*.rds data/real_datasets/
+
+# Run benchmark pipeline (defaults: data/real_datasets/ → results/real_benchmark/)
 Rscript inst/scripts/benchmark/run_benchmark_real.R
 
-# Generate figures
+# Generate figures (written to figures/)
 Rscript inst/scripts/analysis/generate_figures.R
 ```
 
 ### Data Availability
 
-Benchmark datasets are available at https://doi.org/10.5281/zenodo.19050845 or can
-be regenerated using:
+Benchmark datasets are available at
+https://doi.org/10.5281/zenodo.19050845. The simulation generator and a
+template for preparing real GEO datasets are in
+`inst/scripts/data/prepare_data.R` — source the file, then call
+`create_simulated_dataset()` or adapt `prepare_geo_dataset()` to your data:
 
 ```r
-source("inst/scripts/data/prepare_data.R")
+source(system.file("scripts/data/prepare_data.R", package = "DeOPUS"))
+# sampleData_like <- create_simulated_dataset(n_samples = 100, n_cell_types = 5)
 ```
 
 ## Output

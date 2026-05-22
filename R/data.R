@@ -1,4 +1,4 @@
-#' Simulated bulk RNA-seq deconvolution benchmark dataset
+#' Sample bulk RNA-seq deconvolution benchmark dataset
 #'
 #' A simulated benchmark dataset with known ground-truth cell-type proportions
 #' for evaluating and demonstrating the DeOPUS deconvolution method.
@@ -10,10 +10,13 @@
 #'     (e.g. ENSG00000000419); column names are Mixture1 through Mixture512.}
 #'   \item{bulkRatio}{Numeric matrix (2 cell types x 512 samples) containing
 #'     the ground-truth cell-type proportions used to generate \code{bulk}.
-#'     Row names are \code{"mature NK T cell"} and \code{"mesenchymal stem cell"}.}
+#'     Row names are \code{"mature NK T cell"} and \code{"mesenchymal stem cell"}.
+#'     Note: row order may differ from the column order of \code{cellTypeExpr},
+#'     so align by name before comparing predictions to ground truth.}
 #'   \item{cellTypeExpr}{Numeric matrix (11852 genes x 2 cell types) of reference
 #'     expression profiles derived from single-cell RNA-seq data.
-#'     Column names match the row names of \code{bulkRatio}.}
+#'     Column names match (but may be in a different order from) the row names of
+#'     \code{bulkRatio}.}
 #'   \item{signature}{Numeric matrix (974 signature genes x 2 cell types) of
 #'     the most discriminative marker genes for each cell type.}
 #'   \item{nCellTypes}{Integer. Number of cell types (2).}
@@ -27,27 +30,37 @@
 #'     cell in \code{singleCellExpr}.}
 #' }
 #'
-#' @usage data(simulated)
+#' @usage data(sampleData)
 #'
 #' @examples
-#' data(simulated)
+#' data(sampleData)
 #'
-#' # Inspect the bulk expression matrix
-#' dim(simulated$bulk)       # 11852 x 512
-#' dim(simulated$cellTypeExpr)  # 11852 x 2
+#' # Inspect the dataset
+#' dim(sampleData$bulk)          # 11852 x 512
+#' dim(sampleData$cellTypeExpr)  # 11852 x 2
 #'
-#' # Run deconvolution on a small subset
+#' # Run deconvolution on a small subset for speed
 #' set.seed(42)
-#' idx <- sample(ncol(simulated$bulk), 10)
+#' idx <- sample(ncol(sampleData$bulk), 10)
 #' results <- deconvolve(
-#'   bulk      = simulated$bulk[, idx],
-#'   reference = simulated$cellTypeExpr,
+#'   bulk      = sampleData$bulk[, idx],
+#'   reference = sampleData$cellTypeExpr,
 #'   n_cores   = 1,
 #'   maxit     = 50
 #' )
-#' head(results$proportions)
+#'
+#' # Align bulkRatio cell-type ORDER to match results$proportions columns
+#' # (bulkRatio rows and cellTypeExpr columns may be in a different order).
+#' ct <- colnames(results$proportions)
+#' true_props <- t(sampleData$bulkRatio[ct, idx, drop = FALSE])
+#'
+#' # Per-sample Pearson correlation with ground truth
+#' cor_values <- sapply(seq_len(nrow(results$proportions)), function(i) {
+#'   cor(results$proportions[i, ], true_props[i, ], method = "pearson")
+#' })
+#' mean(cor_values, na.rm = TRUE)
 #'
 #' @source
 #' Simulated using negative-binomial expression models with known mixing
 #' proportions. See \code{data-raw/prepare_data.R} for the generation script.
-"simulated"
+"sampleData"

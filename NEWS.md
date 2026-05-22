@@ -5,9 +5,11 @@
 * First public release of DeOPUS (Deconvolution via Optimized Power-transformed Unmixing with Shrinkage)
 * Core deconvolution algorithm with hierarchical shrinkage transformation
 * Parallel processing support via `parallel::mclapply`
-* Comprehensive benchmarking scripts for real and simulated datasets
+* Built-in sample benchmark dataset (`sampleData`) for demonstration and testing
+* Comprehensive benchmarking scripts in `inst/scripts/`
 * Visualization dashboard for benchmark results
 * Full documentation and vignettes
+* GitHub Actions for CRAN-style checks on Linux/macOS/Windows and automated releases on version tags
 
 ## Key Features
 

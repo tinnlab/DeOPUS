@@ -28,15 +28,15 @@
 #' }
 #'
 #' @examples
-#' # Load the built-in simulated benchmark dataset
-#' data(simulated)
+#' # Load the built-in sample benchmark dataset
+#' data(sampleData)
 #'
 #' # Run deconvolution on a small subset for speed
 #' set.seed(42)
-#' idx <- sample(ncol(simulated$bulk), 10)
+#' idx <- sample(ncol(sampleData$bulk), 10)
 #' results <- deconvolve(
-#'   bulk      = simulated$bulk[, idx],
-#'   reference = simulated$cellTypeExpr,
+#'   bulk      = sampleData$bulk[, idx],
+#'   reference = sampleData$cellTypeExpr,
 #'   n_cores   = 1,
 #'   maxit     = 50
 #' )

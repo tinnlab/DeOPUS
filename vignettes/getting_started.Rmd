@@ -53,26 +53,26 @@ DeOPUS requires two inputs:
 
 Both matrices must have matching gene identifiers as row names.
 
-## Quick Example: Simulated Dataset
+## Quick Example
 
-The package includes a built-in simulated benchmark dataset with known
-ground-truth proportions for 2 cell types across 512 samples.
+The package includes a built-in simulated benchmark dataset (`sampleData`) with
+known ground-truth proportions for 2 cell types across 512 samples.
 
-```{r simulated-data, eval=FALSE}
-# Load built-in simulated dataset
-data(simulated)
+```{r sample-data, eval=FALSE}
+# Load the built-in sample dataset
+data(sampleData)
 
 # Inspect dimensions
-dim(simulated$bulk)          # 11852 genes x 512 samples
-dim(simulated$cellTypeExpr)  # 11852 genes x 2 cell types
+dim(sampleData$bulk)          # 11852 genes x 512 samples
+dim(sampleData$cellTypeExpr)  # 11852 genes x 2 cell types
 
 # Run deconvolution on a small subset (10 samples for speed)
 set.seed(42)
-idx <- sample(ncol(simulated$bulk), 10)
+idx <- sample(ncol(sampleData$bulk), 10)
 
 results <- deconvolve(
-  bulk      = simulated$bulk[, idx],
-  reference = simulated$cellTypeExpr,
+  bulk      = sampleData$bulk[, idx],
+  reference = sampleData$cellTypeExpr,
   alpha     = 0.01,
   n_cores   = 1,
   verbose   = TRUE
@@ -84,59 +84,20 @@ head(results$proportions)
 
 ### Evaluate Against Ground Truth
 
-```{r evaluate-simulated, eval=FALSE}
-# Ground-truth proportions for the selected samples
-true_props <- t(simulated$bulkRatio[, idx])  # samples x cell types
+`bulkRatio` row names and `cellTypeExpr` column names may be in different
+orders, so align by cell-type name before computing the correlation:
 
-# Pearson correlation per sample between estimated and true proportions
+```{r evaluate, eval=FALSE}
+# Align bulkRatio cell-type ORDER to match results$proportions columns
+ct <- colnames(results$proportions)
+true_props <- t(sampleData$bulkRatio[ct, idx, drop = FALSE])  # 10 x 2
+
+# Pearson correlation per sample
 cor_values <- sapply(seq_len(nrow(results$proportions)), function(i) {
   cor(results$proportions[i, ], true_props[i, ], method = "pearson")
 })
 
 cat("Mean Pearson correlation:", round(mean(cor_values, na.rm = TRUE), 3), "\n")
-```
-
-## Real Dataset: GSE77343
-
-The package also bundles a real bulk RNA-seq dataset from GEO accession
-GSE77343 with 17,275 genes, 197 samples, and a reference panel of 15 cell
-types. Because of its size, it is stored in `inst/extdata/` and must be
-loaded explicitly.
-
-```{r real-data, eval=FALSE}
-# Load real GEO dataset from inst/extdata
-GSE77343 <- readRDS(system.file("extdata", "GSE77343.rds", package = "DeOPUS"))
-
-# Inspect
-dim(GSE77343$bulk)          # 17275 genes x 197 samples
-dim(GSE77343$cellTypeExpr)  # 17275 genes x 15 cell types
-
-# Run deconvolution (use multiple cores for speed)
-results_gse <- deconvolve(
-  bulk      = GSE77343$bulk,
-  reference = GSE77343$cellTypeExpr,
-  n_cores   = 4,
-  verbose   = TRUE
-)
-
-# View proportions
-head(results_gse$proportions)
-```
-
-### Compare With Available Ground Truth
-
-```{r evaluate-real, eval=FALSE}
-# GSE77343$bulkRatio contains measured proportions for 5 of the 15 cell types
-common_types <- intersect(rownames(GSE77343$bulkRatio),
-                          colnames(results_gse$proportions))
-
-cor_per_type <- sapply(common_types, function(ct) {
-  cor(results_gse$proportions[, ct],
-      GSE77343$bulkRatio[ct, ],
-      method = "pearson")
-})
-
-print(round(cor_per_type, 3))
 ```
 
 ## Method Details
@@ -177,6 +138,19 @@ minimize the loss between transformed bulk and reconstructed expression.
 | `n_cores` | 1       | Parallel processing cores |
 | `maxit`   | 100     | Maximum optimization iterations |
 | `verbose` | FALSE   | Print progress messages |
+
+## Benchmarking
+
+The package ships benchmark and analysis scripts in `inst/scripts/`. After
+installation, source them via `system.file()`:
+
+```{r benchmark, eval=FALSE}
+# Run benchmark on real datasets
+source(system.file("scripts/benchmark/run_benchmark_real.R", package = "DeOPUS"))
+
+# Generate visualization dashboard
+source(system.file("scripts/analysis/visualize_results.R", package = "DeOPUS"))
+```
 
 ## Session Info
 

@@ -1,71 +1,125 @@
 # DeOPUS: Deconvolution via Optimized Power-transformed Unmixing with Shrinkage
 
-[![R](https://img.shields.io/badge/R-%3E%3D4.0-blue.svg)](https://www.r-project.org/)
+[![R-CMD-check](https://github.com/tinnlab/DeOPUS/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/tinnlab/DeOPUS/actions/workflows/R-CMD-check.yaml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-DeOPUS is a reference-based cellular deconvolution method that employs hierarchical shrinkage transformation to robustly estimate cell-type proportions from bulk RNA sequencing data.
+DeOPUS is a reference-based cellular deconvolution method that employs hierarchical
+shrinkage transformation to robustly estimate cell-type proportions from bulk RNA-seq data.
 
 ## Overview
 
-Single-cell RNA sequencing enables comprehensive transcriptomic profiling at single-cell resolution, but high costs limit its widespread application. DeOPUS offers a cost-effective alternative by computationally estimating cell-type proportions from bulk RNA-seq data.
+Single-cell RNA sequencing enables comprehensive transcriptomic profiling at single-cell
+resolution, but high costs limit its widespread application. DeOPUS offers a cost-effective
+alternative by computationally estimating cell-type proportions from bulk RNA-seq data.
 
 **Key features:**
 - Hierarchical shrinkage transformation with local and global priors
 - Variance-stabilizing power transformation
 - Quantile normalization to minimize outlier influence
-- Robust performance across diverse tissues and cell-type complexities
+- Parallel processing support via `parallel::mclapply`
 
 ## Installation
-
-### From GitHub
 
 ```r
 # Install devtools if not already installed
 install.packages("devtools")
 
-# Install DeOPUS
+# Install DeOPUS from GitHub
 devtools::install_github("tinnlab/DeOPUS")
 ```
 
-### Dependencies
+## Quick Start: Simulated Dataset
 
-```r
-install.packages(c("Matrix", "dplyr", "parallel"))
-```
-
-## Quick Start
+The package ships with a built-in simulated benchmark dataset (`simulated`) containing
+11,852 genes, 512 samples, and 2 cell types with known ground-truth proportions.
 
 ```r
 library(DeOPUS)
 
-# Load your data
-# cellTypeExpr: reference expression matrix (genes x cell types)
-# bulk: bulk expression matrix (genes x samples)
+# Load the built-in simulated benchmark dataset
+data(simulated)
+
+# Run deconvolution on a small subset for speed
+set.seed(42)
+idx <- sample(ncol(simulated$bulk), 10)
+
+results <- deconvolve(
+  bulk      = simulated$bulk[, idx],
+  reference = simulated$cellTypeExpr,
+  n_cores   = 1,
+  verbose   = TRUE
+)
+
+# View estimated proportions (samples x cell types)
+head(results$proportions)
+
+# Evaluate against ground truth
+true_props <- t(simulated$bulkRatio[, idx])  # samples x cell types
+cor_values <- sapply(seq_len(nrow(results$proportions)), function(i) {
+  cor(results$proportions[i, ], true_props[i, ], method = "pearson")
+})
+cat("Mean Pearson correlation:", round(mean(cor_values, na.rm = TRUE), 3), "\n")
+```
+
+## Real Dataset: GSE77343
+
+A real bulk RNA-seq dataset (GSE77343, 17,275 genes × 197 samples, 15 cell types) is
+bundled in `inst/extdata/`. Load it with `system.file()`:
+
+```r
+library(DeOPUS)
+
+# Load the real GEO dataset
+GSE77343 <- readRDS(system.file("extdata", "GSE77343.rds", package = "DeOPUS"))
+
+# Inspect
+dim(GSE77343$bulk)          # 17275 x 197
+dim(GSE77343$cellTypeExpr)  # 17275 x 15
 
 # Run deconvolution
 results <- deconvolve(
-  bulk = bulk_matrix,
-  reference = reference_matrix,
-  alpha = 0.01,
-  n_cores = 4
+  bulk      = GSE77343$bulk,
+  reference = GSE77343$cellTypeExpr,
+  n_cores   = 4,
+  verbose   = TRUE
 )
 
 # View estimated proportions
 head(results$proportions)
+
+# Compare with available ground truth (5 measurable cell types)
+common_types <- intersect(rownames(GSE77343$bulkRatio), colnames(results$proportions))
+cor_per_type <- sapply(common_types, function(ct) {
+  cor(results$proportions[, ct], GSE77343$bulkRatio[ct, ], method = "pearson")
+})
+print(round(cor_per_type, 3))
 ```
 
 ## Input Data Format
 
-DeOPUS requires two main inputs:
+| Argument    | Format                    | Description |
+|-------------|---------------------------|-------------|
+| `bulk`      | genes × samples matrix    | Bulk RNA-seq expression (linear scale, non-negative) |
+| `reference` | genes × cell types matrix | Reference profiles derived from scRNA-seq |
 
-1. **Reference expression matrix** (`reference`): A genes × cell types matrix containing average expression profiles for each cell type, typically derived from scRNA-seq data.
+Both matrices must share gene identifiers as row names.
 
-2. **Bulk expression matrix** (`bulk`): A genes × samples matrix containing bulk RNA-seq expression data to be deconvolved.
+## Parameters
 
-Both matrices should:
-- Have matching gene identifiers (rownames)
-- Be in linear scale (not log-transformed)
-- Contain non-negative values
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `alpha`   | 0.01    | Regularization parameter for transformation |
+| `power`   | 2       | Loss function power (1 = MAE, 2 = MSE) |
+| `n_cores` | 1       | Number of parallel cores |
+| `maxit`   | 100     | Maximum optimization iterations |
+| `verbose` | FALSE   | Print progress messages |
+
+## Output
+
+`deconvolve()` returns a list:
+
+- `proportions`: Numeric matrix (samples × cell types) of estimated proportions that sum to 1.
+- `convergence`: List of per-sample optimization convergence information.
 
 ## Method Details
 
@@ -76,71 +130,15 @@ DeOPUS applies a multi-level adaptive transformation:
 3. **Power transformation**: Stabilizes variance across the dynamic range
 4. **Quantile normalization**: Ensures robust comparison between predicted and observed profiles
 
-The optimization minimizes the weighted loss between transformed bulk and reconstructed expression profiles using L-BFGS-B with box constraints.
+The optimization minimizes the weighted loss using L-BFGS-B with box constraints.
 
-## Benchmarking
+## Benchmarking Scripts
 
-We benchmarked DeOPUS against six state-of-the-art methods:
-- MuSiC
-- AutoGeneS
-- CIBERSORT
-- FARDEEP
-- scaden
-- AdRoit
-
-### Running Benchmarks
+Scripts for reproducing benchmark results are installed with the package:
 
 ```r
-# Run benchmark on simulated data
-source("scripts/benchmark/run_benchmark_simulated.R")
-
-# Run benchmark on real data
-source("scripts/benchmark/run_benchmark_real.R")
-
-# Generate visualization dashboard
-source("scripts/analysis/visualize_results.R")
-results <- create_summary_barplot_dashboard(benchmark_data)
+system.file("scripts", package = "DeOPUS")
 ```
-
-## Reproducing Paper Results
-
-To reproduce the results from our paper:
-
-```bash
-# Clone the repository
-git clone https://github.com/tinnlab/DeOPUS.git
-cd DeOPUS
-
-# Run the complete benchmark pipeline
-Rscript scripts/benchmark/run_all_benchmarks.R
-
-# Generate figures
-Rscript scripts/analysis/generate_figures.R
-```
-
-### Data Availability
-
-Benchmark datasets are available at https://doi.org/10.5281/zenodo.19050845 or can be generated using:
-
-```r
-source("scripts/data/prepare_benchmark_data.R")
-```
-
-## Output
-
-DeOPUS returns a list containing:
-
-- `proportions`: Matrix of estimated cell-type proportions (samples × cell types)
-- `convergence`: Optimization convergence information for each sample
-
-## Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `alpha` | 0.01 | Regularization parameter for transformation |
-| `n_cores` | 1 | Number of parallel cores |
-| `maxit` | 100 | Maximum optimization iterations |
-| `power` | 2 | Loss function power (1=MAE, 2=MSE) |
 
 ## Citation
 
@@ -148,21 +146,12 @@ If you use DeOPUS in your research, please cite:
 
 ```bibtex
 @article{DeOPUS2025,
-  title={DeOPUS: Deconvolution via Optimized Power-transformed Unmixing with Shrinkage},
-  author={},
-  journal={},
-  year={2025},
-  doi={}
+  title  = {DeOPUS: Deconvolution via Optimized Power-transformed Unmixing with Shrinkage},
+  author = {Ha Nguyen},
+  year   = {2025}
 }
 ```
 
-[//]: # (## License)
+## License
 
-[//]: # ()
-[//]: # (This project is licensed under the MIT License - see the [LICENSE]&#40;LICENSE&#41; file for details.)
-
-[//]: # ()
-[//]: # (## Contact)
-
-[//]: # ()
-[//]: # (For questions or issues, please open an issue on GitHub or contact [email].)
+MIT © Ha Nguyen
